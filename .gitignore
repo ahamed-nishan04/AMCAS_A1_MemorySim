@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────────────
+# External tool trees — cloned and built by tools/build_tools.sh.
+# These are NOT committed: they are large, they have their own git
+# history (a nested .git would be committed as an empty gitlink and the
+# code would not come with the clone), and they are reproducible.
+# ─────────────────────────────────────────────────────────────────────
+gem5/
+gapbs/
+tools/ramulator2/
+PartB/cacti/
+PartC/nvsim-src/
+
+# Built binaries
+PartC/nvsim
+PartD/ramulator2
+PartD/libramulator.so
+
+# ─────────────────────────────────────────────────────────────────────
+# Scratch
+# ─────────────────────────────────────────────────────────────────────
+verify_logs/
+cleanroom/
+PartE/cfgtrees/
+PartD/.cfg_*.yaml
+PartD/cmdtrace/
+m5out/
+
+# Regenerable from the committed .trc.gz (39 MB)
+PartE/traces/*/l2miss.csv
+
+# Build artefacts
+*.o
+*.pyc
+__pycache__/
+.venv/
+obj_dbg/
+
+# ngspice scratch
+PartA/run_w*.sp
+PartA/sweep_T*.sp
+PartA/log_*.txt

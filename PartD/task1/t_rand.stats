@@ -1,0 +1,56 @@
+[Ramulator::LoadStoreTrace] [info] Loading trace file traces/t_rand.ls ...
+[Ramulator::LoadStoreTrace] [info] Loaded 100000 lines.
+Frontend:
+  impl: LoadStoreTrace
+
+MemorySystem:
+  impl: GenericDRAM
+  total_num_other_requests: 0
+  total_num_write_requests: 24931
+  total_num_read_requests: 75069
+  memory_system_cycles: 519900
+  DRAM:
+    impl: DDR4
+  AddrMapper:
+    impl: RoBaRaCoCh
+
+
+  Controller:
+    impl: Generic
+    id: Channel 0
+    avg_read_latency_0: 15.9880457
+    read_queue_len_avg_0: 36.751255
+    write_queue_len_0: 7962277
+    queue_len_0: 27075803
+    num_other_reqs_0: 0
+    num_write_reqs_0: 24931
+    read_latency_0: 21767213
+    priority_queue_len_avg_0: 0.0125947297
+    row_hits_0: 57
+    priority_queue_len_0: 6548
+    row_misses_0: 8424
+    row_conflicts_0: 91479
+    read_row_misses_0: 2190
+    queue_len_avg_0: 52.0788689
+    read_row_conflicts_core_0: 0
+    read_row_hits_0: 44
+    write_queue_len_avg_0: 15.3150167
+    read_row_conflicts_0: 72812
+    write_row_misses_0: 6234
+    write_row_conflicts_0: 18667
+    read_queue_len_0: 19106978
+    write_row_hits_0: 13
+    read_row_hits_core_0: 0
+    read_row_misses_core_0: 0
+    num_read_reqs_0: 1361468
+    Scheduler:
+      impl: FRFCFS
+    RefreshManager:
+      impl: AllBank
+    RowPolicy:
+      impl: OpenRowPolicy
+    ControllerPlugin:
+      impl: TraceRecorder
+
+
+

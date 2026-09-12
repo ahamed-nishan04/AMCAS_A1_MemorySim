@@ -1,0 +1,13 @@
+diff --git a/Makefile b/Makefile
+index edb98a0..a72d844 100644
+--- a/Makefile
++++ b/Makefile
+@@ -9,7 +9,7 @@ RM := rm -f
+ 
+ # define build options
+ # compile options
+-CXXFLAGS := -Wall
++CXXFLAGS := -Wall -std=c++11 -Wno-unused-variable -Wno-unused-but-set-variable -Wno-sign-compare -Wno-reorder -Wno-write-strings
+ # link options
+ LDFLAGS :=
+ # link librarires

@@ -1,0 +1,27 @@
+diff --git a/mat.cc b/mat.cc
+index f290daf..7833a53 100644
+--- a/mat.cc
++++ b/mat.cc
+@@ -1231,6 +1231,22 @@ double Mat::compute_bitline_delay(double inrisetime)
+     }
+     tstep = tau * log(V_b_pre / (V_b_pre - dp.V_b_sense));
+ 
++    if (!is_dram && !camFlag && getenv("BL_DEBUG")) {
++      double r_per_um = g_tp.wire_local.R_per_um, c_per_um = g_tp.wire_local.C_per_um;
++      double L = subarray.num_rows * cell.h;
++      std::cerr << "BLDBG"
++        << " rows=" << subarray.num_rows << " cols=" << subarray.num_cols
++        << " cell_h_um=" << cell.h << " cell_w_um=" << cell.w
++        << " L_um=" << L
++        << " r_per_um=" << r_per_um << " c_per_um=" << c_per_um
++        << " R_bl=" << R_bl << " C_bl=" << C_bl
++        << " C_bl_per_um=" << C_bl / L
++        << " R_pd=" << R_cell_pull_down << " R_acc=" << R_cell_acc
++        << " degblmux=" << deg_bl_muxing
++        << " Vbitpre=" << V_b_pre << " Vbsense=" << dp.V_b_sense
++        << " tau=" << tau << " tstep=" << tstep << std::endl;
++    }
++
+ 
+ //   if (g_ip->array_power_gated)
+ //	   power_bitline.readOp.leakage =

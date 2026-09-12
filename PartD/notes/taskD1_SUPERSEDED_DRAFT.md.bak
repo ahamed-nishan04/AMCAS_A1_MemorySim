@@ -1,0 +1,134 @@
+# Part D, Task 1 — Ramulator on the L2 miss stream
+
+Ramulator 2.0a (`CMU-SAFARI/ramulator2`, tag `v2.0a` — `main` is 2.1 and has
+replaced the YAML CLI with a Python API, so `./ramulator2 -f ddr4.yaml` only
+exists on the 2.0 line). DDR4_8Gb_x8, 1 channel, 2 ranks, DDR4_3200AA,
+FR-FCFS, all-bank refresh, open-row policy, RoBaRaCoCh mapping.
+
+> **Status: the trace is synthetic.** The real stream has to come from gem5's
+> CommMonitor, and gem5 is Part E. The numbers below bracket the answer with
+> three constructed streams so the pipeline, config and stats extraction are
+> verified; every number is replaced once the CommMonitor trace exists. The
+> recipe for producing it is at the end.
+
+## Two things in the handout that do not run as written
+
+**The trace format matches no Ramulator frontend.** There are three, and the
+handout's `0x7f2a4c00 R` is none of them:
+
+| Frontend | Format | |
+|---|---|---|
+| `SimpleO3` | `<bubble_count> <load_addr> [<store_addr>]` | what the handout's YAML selects |
+| `ReadWriteTrace` | `<R\|W> <addr_vec>` | R/W, but a comma-separated DRAM coordinate vector, not a flat address |
+| `LoadStoreTrace` | `<LD\|ST> <address>` | what an L2 miss stream actually is |
+
+The handout uses the op letters of `ReadWriteTrace`, the flat address of
+`LoadStoreTrace`, the reverse token order of both, and declares `SimpleO3`,
+which wants a third format entirely. `SimpleO3` is also wrong on its own terms:
+it models a core *and an LLC*, so feeding it an L2 miss stream would filter the
+misses through a second cache. `to_ramulator.py` converts the handout format to
+`LD`/`ST` and the config uses `LoadStoreTrace`.
+
+**Ramulator 2.0 has no write-latency statistic.** The controller registers
+`read_latency_N` and `avg_read_latency_N` only
+(`generic_dram_controller.cpp:109`). Writes are retired when the command
+issues — there is no round trip to time — so the task's "total read/write
+latency" can only be answered for reads. The write side is visible as
+`num_write_reqs_0` and through its effect on read latency via bus turnaround.
+
+The handout's YAML also omits `Translation`, `RowPolicy` and `AddrMapper`,
+which have no defaults in 2.0 and must be supplied.
+
+## Results
+
+100 000 accesses each, 25 % writes (dirty writebacks from an 8-way writeback L2).
+
+| Stream | memory_system_cycles | reads | writes | read_latency_0 | avg read latency | row-buffer hit rate |
+|---|---|---|---|---|---|---|
+| `seq` — sequential 64 B stride | 697 849 | 75 069 | 24 931 | 24 992 147 | 332.9 | **99.1 %** |
+| `rand` — uniform over 256 MB | 519 900 | 75 069 | 24 931 | 21 767 213 | 290.0 | **0.1 %** |
+| `mixed` — 4 streams + 30 % random | 779 326 | 75 036 | 24 964 | 28 540 021 | 380.4 | **58.9 %** |
+
+Latencies are in DRAM command cycles; tCK = 625 ps at DDR4-3200, so 332.9 cycles
+is 208 ns.
+
+**The average is computed by hand, not read from `avg_read_latency_0`.** That
+statistic is wrong in Ramulator 2.0a: `finalize()` divides `s_read_latency` by
+`s_num_read_reqs`, but `s_num_read_reqs++` sits in `send()`
+(`generic_dram_controller.cpp:118`) and fires on every send *attempt*, including
+the ones rejected because the buffer is full. In the `seq` run that denominator
+is 1 835 999 against 75 069 real reads, a 24× inflation, and the printed
+`avg_read_latency_0` is 13.61 instead of 332.9. Use
+`read_latency_0 / total_num_read_requests`. Task 2 shows this inverts the
+FR-FCFS/FCFS comparison if taken at face value.
+
+Row activity behind the hit rate:
+
+| Stream | row hits | row misses | row conflicts |
+|---|---|---|---|
+| `seq` | 99 088 | 872 | 0 |
+| `rand` | 57 | 8 424 | 91 479 |
+| `mixed` | 58 828 | 4 547 | 36 571 |
+
+## The result that is not obvious
+
+**The stream with the best row-buffer hit rate is not the fastest.** `seq` hits
+the row buffer 99.1 % of the time and takes 697 849 cycles; `rand` hits it 0.1 %
+of the time and finishes in 519 900 — **25 % faster**.
+
+The cause is the address mapping. `RoBaRaCoCh` puts column bits below bank and
+rank bits, so consecutive 64 B lines land in consecutive columns of the *same
+row of the same bank*. Sequential access therefore gets perfect row locality and
+**zero bank-level parallelism** — every access serialises behind the previous
+one on a single bank, and the 32 banks (2 ranks × 4 bank groups × 4 banks) sit
+idle. Random access thrashes rows but spreads across all 32 banks, so activations
+and precharges on one bank overlap with data transfer on another. Bank
+parallelism is worth more here than row locality.
+
+`mixed` is the worst of the three, 779 326 cycles, and that is consistent rather
+than contradictory: its four sequential streams collide in the same banks and
+repeatedly close each other's open rows, producing 36 571 row conflicts. A
+conflict costs tRP + tRCD on a bank that was *already busy* — strictly worse than
+a miss on an idle bank, which is what `rand` mostly generates.
+
+Converted to delivered bandwidth against the channel's 25.6 GB/s peak
+(3200 MT/s × 8 B):
+
+| Stream | Time | Bandwidth | Channel utilisation |
+|---|---|---|---|
+| `seq` | 436.2 µs | 14.67 GB/s | 57.3 % |
+| `rand` | 324.9 µs | 19.70 GB/s | 76.9 % |
+| `mixed` | 487.1 µs | 13.14 GB/s | 51.3 % |
+
+So a saturating L2 miss stream occupies **51–77 % of one DDR4-3200 channel**
+depending only on its address pattern — which is the shape of the answer Part
+D's central question needs, and the reason the real trace matters. The spread
+between these bounds is larger than most of the effects Parts B and C measured.
+
+## Generating the real trace
+
+gem5 could not be built here — this container has 1 core and 3 GB of RAM. On
+your machine:
+
+```bash
+git clone --depth 1 https://github.com/gem5/gem5.git
+cd gem5 && pip install scons  # plus python3-devel, protobuf-devel, libpng-devel
+scons build/X86/gem5.opt -j$(nproc)
+```
+
+Insert a `CommMonitor` between the L2 and the memory bus, and attach a trace
+listener to it:
+
+```python
+from m5.objects import CommMonitor
+mon = CommMonitor()
+mon.trace = MemTraceProbe(trace_file="l2miss.trc.gz")
+system.l2cache.mem_side = mon.cpu_side_port
+mon.mem_side_port = system.membus.cpu_side_ports
+```
+
+gem5 writes a protobuf trace; decode it with
+`util/decode_packet_trace.py l2miss.trc.gz l2miss.csv`, then keep the address
+and command columns, emit `<addr> <R|W>` lines, and run them through
+`to_ramulator.py`. Everything downstream of that is already in place — same
+`ddr4.yaml`, same `run.sh`, same `stats.py`.

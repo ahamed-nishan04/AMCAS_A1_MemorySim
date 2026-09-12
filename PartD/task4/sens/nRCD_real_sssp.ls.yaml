@@ -1,0 +1,45 @@
+# Part D: L2 miss stream on one DDR4-3200AA channel.
+# Differences from the handout's ddr4.yaml, all forced by the tool:
+#   Frontend impl  SimpleO3 -> LoadStoreTrace.  SimpleO3 consumes an
+#     instruction trace (<bubble> <load> [<store>]) and models a core + LLC;
+#     an L2 miss stream is a memory-access trace, which is what LoadStoreTrace
+#     takes.  Trace lines converted with to_ramulator.py.
+#   Translation, RowPolicy and AddrMapper added: the handout omits them and
+#     Ramulator 2.0 has no defaults for them.
+Frontend:
+  impl: LoadStoreTrace
+  clock_ratio: 8
+  path: traces/real_sssp.ls
+  Translation:
+    impl: NoTranslation
+    max_addr: 2147483648
+
+MemorySystem:
+  impl: GenericDRAM
+  clock_ratio: 3
+
+  DRAM:
+    impl: DDR4
+    org:
+      preset: DDR4_8Gb_x8
+      channel: 2
+      rank: 2
+    timing:
+      preset: DDR4_3200AA
+
+      nRCD: 11
+  Controller:
+    impl: Generic
+    Scheduler:
+      impl: FRFCFS
+    RefreshManager:
+      impl: AllBank
+    RowPolicy:
+      impl: OpenRowPolicy
+    plugins:
+      - ControllerPlugin:
+          impl: TraceRecorder
+          path: cmdtrace/cmd_trace.log
+
+  AddrMapper:
+    impl: RoBaRaCoCh
